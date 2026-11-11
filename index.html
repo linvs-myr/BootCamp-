@@ -91,7 +91,7 @@ function render(force){
   (x.log||[]).slice(0,10).forEach(l=>{h+=`<div class="log"><b>${esc(l.d)}</b> · ${l.min} Min${l.g?" · "+esc(l.g):""}${l.ex?`<br>Prüfungen: ${l.ex}, bestanden: ${l.ps||0}, nicht bestanden: ${l.ex-(l.ps||0)}`:""}${l.tk?`<br>Aufgaben: ${l.tk}`:""}${l.note?`<br>${esc(l.note)}`:""}${(l.pids||(l.pid?[l.pid]:[])).map(p=>photos[p]?`<img src="${photos[p]}" alt="Foto">`:"").join("")}</div>`});
   if(!(x.log||[]).length)h+='<p class="mu">Noch keine Sessions.</p>'}
  h+='</div>';
- h+='<div class="card"><h2>Einladung</h2><p class="mu">Schick diesen Link per WhatsApp. Die andere Person muss nichts einrichten.</p><button id="inv">Link kopieren</button></div>';
+ h+='<div class="card"><h2>Einladung</h2><p class="mu">Schick diesen Link per WhatsApp. Die andere Person muss nichts einrichten.</p><button id="inv">Link kopieren</button> <button id="sw">Person wechseln</button></div>';
  const k=kindOf(m);
  if(summary)h+=`<div class="modal"><div class="card"><h2>Was hast du geschafft?</h2><label>Gelernte Minuten</label><input id="smin" type="number" min="0" value="${summary.min}">
   ${k==="exam"?'<div class="g2"><div><label>Prüfungen gemacht</label><input id="sex" type="number" min="0" value="0"></div><div><label>davon bestanden</label><input id="sps" type="number" min="0" value="0"></div></div>':""}
@@ -101,6 +101,7 @@ function render(force){
  app.innerHTML=h;
  if($("#fin"))$("#fin").onclick=finishNow;if($("#pau"))$("#pau").onclick=()=>{const m=me();save({pausedLeft:Math.max(0,m.startedAt+m.durMin*60000-Date.now()),startedAt:null})};if($("#res"))$("#res").onclick=()=>{const m=me();wake();save({startedAt:Date.now()+m.pausedLeft-m.durMin*60000,pausedLeft:null})};document.querySelectorAll("[data-c]").forEach(b=>b.onclick=()=>save({cheersSent:(me().cheersSent||0)+1,lastCheer:Date.now()}));
  if($("#go")){$("#go").onclick=()=>{wake();save({startedAt:Date.now(),durMin:sel})};document.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{sel=+b.dataset.d;render(true)})}
+ if($("#sw"))$("#sw").onclick=()=>{if(confirm("Auf diesem Gerät eine andere Person wählen?")){localStorage.removeItem("who");location.reload()}};
  if($("#inv"))$("#inv").onclick=()=>{const u=location.origin+location.pathname+"#cfg="+encodeURIComponent(btoa(JSON.stringify({c:CFG,r:ROOM})));try{navigator.clipboard.writeText(u);$("#inv").textContent="Kopiert ✓"}catch(e){prompt("Link kopieren:",u)}};
  document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{tab=b.dataset.t;render(true)});
  if(mine&&$("#gt"))["#gt","#gk","#gv","#gp"].forEach(i=>$(i).onchange=saveGoals);
