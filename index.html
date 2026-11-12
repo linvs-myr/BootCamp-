@@ -33,7 +33,7 @@ let CFG=null,ROOM="";
 try{const m=location.hash.match(/cfg=([^&]+)/);if(m){localStorage.setItem("lr_cfg",atob(decodeURIComponent(m[1])));history.replaceState(null,"",location.pathname)}}catch(e){}
 try{const o=JSON.parse(localStorage.getItem("lr_cfg")||"null");if(o){CFG=o.c;ROOM=o.r}}catch(e){}
 const LV=[0,45,120,240,400,600,850,1150,1500,1900,2400,3000],PETS=["🥚","🐣","🐥","🐹","🐰","🐶","🦊","🐯","🦁","😺","🐱","🐈"];
-let db,uid,members={},photos={},summary=null,pend=null,sel=25,dirty=false,werr=false,tab=null;
+let db,uid,members={},photos={},summary=null,qp=null,pend=null,sel=25,dirty=false,werr=false,tab=null;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const day=()=>new Date().toLocaleDateString("sv");
@@ -50,6 +50,12 @@ function saveGoals(){save({goalText:$("#gt").value.trim(),goalKind:$("#gk").valu
 function openSummary(min){summary={min};pend=null;render(true)}
 function finishNow(){const m=me();const el=Math.round((m.pausedLeft!=null?m.durMin*60000-m.pausedLeft:Date.now()-m.startedAt)/60000);openSummary(Math.max(1,Math.min(m.durMin,el)))}
 function shrink(f){return new Promise(r=>{const im=new Image();im.onload=()=>{const k=Math.min(1,640/Math.max(im.width,im.height));const c=document.createElement("canvas");c.width=im.width*k;c.height=im.height*k;c.getContext("2d").drawImage(im,0,0,c.width,c.height);r(c.toDataURL("image/jpeg",.6))};im.src=URL.createObjectURL(f)})}
+function lastQ(x){const l=(x.log||[]).find(l=>l.quick&&Date.now()-l.t<216e5);if(!l)return"";const ago=Math.max(1,Math.round((Date.now()-l.t)/60000));const ph=(l.pids||[]).map(p=>photos[p]).find(Boolean);
+ return `<div class="mu" style="margin-top:6px">${l.ps?"✅ Prüfung bestanden":"❌ Prüfung nicht bestanden"} · vor ${ago<60?ago+" Min":Math.round(ago/60)+" Std"}${l.note?" · "+esc(l.note):""}</div>${ph?`<img class="pv" style="max-height:140px" src="${ph}" alt="">`:""}`}
+function sendQuick(){if(qp.pass===null){alert("Bitte zuerst das Ergebnis wählen");return}const m=me();const pids=[];
+ (pend||[]).forEach((img,i)=>{const pid=uid+"_"+Date.now()+"_"+i;pids.push(pid);db.doc("photos/"+pid).set({img}).catch(()=>{werr=true;render(true)});photos[pid]=img});
+ const e={d:day(),t:Date.now(),min:0,ex:1,ps:qp.pass?1:0,note:$("#qnote").value.trim(),g:m.goalText||"",pids,quick:1};
+ qp=null;pend=null;save({log:[e,...(m.log||[])].slice(0,60),exTotal:(m.exTotal||0)+1,passTotal:(m.passTotal||0)+e.ps})}
 function saveSummary(){const m=me(),k=kindOf(m);const n=id=>$(id)?Math.max(0,parseInt($(id).value)||0):0;
  const min=n("#smin"),ex=n("#sex"),ps=Math.min(ex,n("#sps")),tk=n("#stk"),note=$("#note").value.trim();let pids=[];
  (pend||[]).forEach((img,i)=>{const pid=uid+"_"+Date.now()+"_"+i;pids.push(pid);db.doc("photos/"+pid).set({img}).catch(()=>{werr=true;render(true)});photos[pid]=img});
@@ -57,20 +63,20 @@ function saveSummary(){const m=me(),k=kindOf(m);const n=id=>$(id)?Math.max(0,par
  summary=null;pend=null;save({startedAt:null,pausedLeft:null,log,totalMin:(m.totalMin||0)+min,exTotal:(m.exTotal||0)+ex,passTotal:(m.passTotal||0)+ps,tkTotal:(m.tkTotal||0)+tk})}
 function render(force){
  const a=document.activeElement;
- if(!force&&(summary||(a&&(a.tagName==="INPUT"||a.tagName==="TEXTAREA"||a.tagName==="SELECT")))){dirty=true;return}
+ if(!force&&(summary||qp||(a&&(a.tagName==="INPUT"||a.tagName==="TEXTAREA"||a.tagName==="SELECT")))){dirty=true;return}
  dirty=false;const m=me();const app=$("#app");
  if(!m.name){app.innerHTML='<h1>Lernraum zu zweit</h1><div class="card"><h2>Wer bist du?</h2><div class="row"><button class="p" data-n="Linus">Ich bin Linus</button><button class="p" data-n="Hannah">Ich bin Hannah</button></div></div>';
   document.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>save({name:b.dataset.n}));return}
  const all=Object.entries(members),byName=n=>all.find(([,x])=>x.name===n);
  const total=all.reduce((s,[,x])=>s+(x.totalMin||0),0);
  let lv=0;LV.forEach((t,i)=>{if(total>=t)lv=i});const nxt=LV[lv+1];const pct=nxt?Math.round((total-LV[lv])/(nxt-LV[lv])*100):100;
- const ch=all.find(([id,x])=>id!==uid&&x.lastCheer&&Date.now()-x.lastCheer<3e5);let h='<h1>Lernraum zu zweit</h1>'+(ch?`<div class="card" style="text-align:center">👏 ${esc(ch[1].name)} feuert dich an!</div>`:"")+(werr?'<div class="err">Speichern klappt gerade nicht. Vermutlich hast du nur Leserechte oder bist nicht eingeloggt. Bitte lass dich als Mitwirkende einladen.</div>':'');
+ const qn=all.find(([id,x])=>id!==uid&&(x.log||[]).some(l=>l.quick&&Date.now()-l.t<6e5));const ch=all.find(([id,x])=>id!==uid&&x.lastCheer&&Date.now()-x.lastCheer<3e5);let h='<h1>Lernraum zu zweit</h1>'+(ch?`<div class="card" style="text-align:center">👏 ${esc(ch[1].name)} feuert dich an!</div>`:"")+(qn?`<div class="card" style="text-align:center">🔔 ${esc(qn[1].name)} hat gerade eine Prüfung gemeldet</div>`:"")+(werr?'<div class="err">Speichern klappt gerade nicht. Vermutlich hast du nur Leserechte oder bist nicht eingeloggt. Bitte lass dich als Mitwirkende einladen.</div>':'');
  h+=`<div class="card pet"><div class="e">${PETS[lv]}</div><b>Level ${lv+1} von ${LV.length}</b><div class="bar"><i style="width:${pct}%"></i></div><div class="mu">${nxt?`Noch ${nxt-total} Min bis zum nächsten Level`:"Eure Katze ist ausgewachsen! 🎉"} · gemeinsam ${Math.round(total/6)/10} Std gelernt</div></div>`;
  h+='<div class="card"><h2>Im Raum</h2>';
  NAMES.forEach(n=>{const e=byName(n);if(!e){h+=`<div style="margin-bottom:10px"><b>${n}</b> <span class="mu">noch nicht beigetreten</span></div>`;return}
   const[id,x]=e,p=prog(x),lvv=x.startedAt&&Date.now()<x.startedAt+x.durMin*60000;
   h+=`<div style="margin-bottom:14px"><b>${n}${id===uid?" (du)":""}</b> ${lvv?`<span class="live">● lernt – <span data-end="${x.startedAt+x.durMin*60000}"></span></span>`:(x.pausedLeft!=null?'<span class="mu">⏸ Pause</span>':'<span class="mu">nicht am Lernen</span>')}
-  <div class="mu">Ziel: ${esc(x.goalText||"noch keins")}</div><div class="bar ${p.pct>=100?"ok":""}"><i style="width:${p.pct}%"></i></div><div class="mu">${p.txt}</div>${id!==uid?'<button data-c="1">👏 Anfeuern</button>':""}${x.cheersSent?` <span class="mu">${x.cheersSent}× 👏 gesendet</span>`:""}</div>`});
+  <div class="mu">Ziel: ${esc(x.goalText||"noch keins")}</div><div class="bar ${p.pct>=100?"ok":""}"><i style="width:${p.pct}%"></i></div><div class="mu">${p.txt}</div>${lastQ(x)}${id!==uid?'<button data-c="1">👏 Anfeuern</button>':""}${x.cheersSent?` <span class="mu">${x.cheersSent}× 👏 gesendet</span>`:""}</div>`});
  h+='</div>';
  const live=m.startedAt&&Date.now()<m.startedAt+m.durMin*60000;
  h+='<div class="card"><h2>Meine Session</h2>';
@@ -78,6 +84,7 @@ function render(force){
  else if(live)h+=`<div class="big" data-end="${m.startedAt+m.durMin*60000}"></div><div class="row" style="justify-content:center"><button id="pau">⏸ Pause</button><button class="p" id="fin">Fertig / beenden</button></div><p class="mu" style="text-align:center">Der Timer läuft weiter, auch wenn du die Seite verlässt. Wenn du zurückkommst, siehst du die Restzeit.</p>`;
  else h+=`<label>Dauer</label><div class="row">${[15,25,45,60,90].map(n=>`<button class="${n===sel?"on":""}" data-d="${n}">${n} Min</button>`).join("")}</div><p><button class="p" id="go" style="width:100%">Session starten</button></p>`;
  h+='</div>';
+ h+='<div class="card"><button class="p" id="qx" style="width:100%">📸 Prüfung / Ergebnis melden</button></div>';
  const t=NAMES.includes(tab)?tab:m.name;const te=byName(t),mine=te&&te[0]===uid;
  h+='<div class="card"><h2>Lernziele &amp; Rückblick</h2><div class="tabs">'+NAMES.map(n=>`<button class="${n===t?"on":""}" data-t="${n}">${n}</button>`).join("")+'</div>';
  if(!te)h+=`<p class="mu">${t} ist noch nicht beigetreten.</p>`;
@@ -94,13 +101,18 @@ function render(force){
  h+='<div class="card"><h2>Einladung</h2><p class="mu">Schick diesen Link per WhatsApp. Die andere Person muss nichts einrichten.</p><button id="inv">Link kopieren</button> <button id="sw">Person wechseln</button></div>';
  const k=kindOf(m);
  if(summary)h+=`<div class="modal"><div class="card"><h2>Was hast du geschafft?</h2><label>Gelernte Minuten</label><input id="smin" type="number" min="0" value="${summary.min}">
-  ${k==="exam"?'<div class="g2"><div><label>Prüfungen gemacht</label><input id="sex" type="number" min="0" value="0"></div><div><label>davon bestanden</label><input id="sps" type="number" min="0" value="0"></div></div>':""}
+  ${k==="exam"?'<div class="g2"><div><label>Weitere Prüfungen (ohne gemeldete)</label><input id="sex" type="number" min="0" value="0"></div><div><label>davon bestanden</label><input id="sps" type="number" min="0" value="0"></div></div>':""}
   ${k==="tasks"?'<label>Bearbeitete Aufgaben</label><input id="stk" type="number" min="0" value="0">':""}
   <label>Fotos (Ergebnis oder Tagesfoto, bis zu 4)</label><input id="ph" type="file" accept="image/*" multiple><div id="pv"></div>
   <label>Notiz</label><textarea id="note" rows="3" placeholder="z. B. Kapitel 3 wiederholt"></textarea><p class="row"><button class="p" id="sv">Speichern</button><button id="sc">Verwerfen</button></p></div></div>`;
+ if(qp)h+=`<div class="modal"><div class="card"><h2>Prüfung melden</h2><div class="row"><button id="qpass" class="${qp.pass===true?"on":""}">✅ Bestanden</button><button id="qfail" class="${qp.pass===false?"on":""}">❌ Nicht bestanden</button></div><label>Fotos (z. B. Ergebnis)</label><input id="qph" type="file" accept="image/*" multiple><div id="qpv"></div><label>Notiz</label><textarea id="qnote" rows="2"></textarea><p class="row"><button class="p" id="qsend">Senden</button><button id="qc">Abbrechen</button></p></div></div>`;
  app.innerHTML=h;
  if($("#fin"))$("#fin").onclick=finishNow;if($("#pau"))$("#pau").onclick=()=>{const m=me();save({pausedLeft:Math.max(0,m.startedAt+m.durMin*60000-Date.now()),startedAt:null})};if($("#res"))$("#res").onclick=()=>{const m=me();wake();save({startedAt:Date.now()+m.pausedLeft-m.durMin*60000,pausedLeft:null})};document.querySelectorAll("[data-c]").forEach(b=>b.onclick=()=>save({cheersSent:(me().cheersSent||0)+1,lastCheer:Date.now()}));
  if($("#go")){$("#go").onclick=()=>{wake();save({startedAt:Date.now(),durMin:sel})};document.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{sel=+b.dataset.d;render(true)})}
+ if($("#qx"))$("#qx").onclick=()=>{qp={pass:null};pend=null;render(true)};
+ if($("#qpass")){$("#qpass").onclick=()=>{qp.pass=true;$("#qpass").classList.add("on");$("#qfail").classList.remove("on")};$("#qfail").onclick=()=>{qp.pass=false;$("#qfail").classList.add("on");$("#qpass").classList.remove("on")};
+  $("#qph").onchange=async e=>{const fs=[...e.target.files].slice(0,4);pend=[];for(const f of fs)pend.push(await shrink(f));$("#qpv").innerHTML=pend.map(s=>`<img class="pv" src="${s}" alt="">`).join("")};
+  $("#qc").onclick=()=>{qp=null;pend=null;render(true)};$("#qsend").onclick=sendQuick}
  if($("#sw"))$("#sw").onclick=()=>{if(confirm("Auf diesem Gerät eine andere Person wählen?")){localStorage.removeItem("who");location.reload()}};
  if($("#inv"))$("#inv").onclick=()=>{const u=location.origin+location.pathname+"#cfg="+encodeURIComponent(btoa(JSON.stringify({c:CFG,r:ROOM})));try{navigator.clipboard.writeText(u);$("#inv").textContent="Kopiert ✓"}catch(e){prompt("Link kopieren:",u)}};
  document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{tab=b.dataset.t;render(true)});
