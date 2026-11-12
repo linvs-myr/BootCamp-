@@ -24,7 +24,7 @@ button.p{background:var(--ac);color:#fff;font-weight:600}button.on{outline:2px s
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;padding:16px;z-index:5;overflow:auto}
 .modal .card{width:100%;max-width:420px;margin:auto}
 label{display:block;font-size:13px;color:var(--mu);margin:8px 0 4px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.tabs{display:flex;gap:8px;margin-bottom:10px}.tabs button{flex:1}.err{background:var(--bad);color:#fff;border-radius:12px;padding:10px;margin-bottom:12px}
+.tabs{display:flex;gap:8px;margin-bottom:10px}.tabs button{flex:1}.gal{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}.gal img{max-height:110px;width:100%;object-fit:cover;margin:0}.err{background:var(--bad);color:#fff;border-radius:12px;padding:10px;margin-bottom:12px}
 </style></head><body><div id="app"><p class="card">Lade …</p></div>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -32,7 +32,7 @@ label{display:block;font-size:13px;color:var(--mu);margin:8px 0 4px}.g2{display:
 let CFG=null,ROOM="";
 try{const m=location.hash.match(/cfg=([^&]+)/);if(m){localStorage.setItem("lr_cfg",atob(decodeURIComponent(m[1])));history.replaceState(null,"",location.pathname)}}catch(e){}
 try{const o=JSON.parse(localStorage.getItem("lr_cfg")||"null");if(o){CFG=o.c;ROOM=o.r}}catch(e){}
-const LV=[0,45,120,240,400,600,850,1150,1500,1900,2400,3000],PETS=["🥚","🐣","🐥","🐹","🐰","🐶","🦊","🐯","🦁","😺","🐱","🐈"];
+const LV=Array.from({length:100},(_,i)=>Math.round(12000*Math.pow(i/99,1.5))),PETS=["🥚","🐣","🐥","🐹","🐰","🐶","🦊","🐯","🦁","😺","🐱","🐈"];
 let db,uid,members={},photos={},summary=null,qp=null,pend=null,sel=25,dirty=false,werr=false,tab=null;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -50,16 +50,16 @@ function saveGoals(){save({goalText:$("#gt").value.trim(),goalKind:$("#gk").valu
 function openSummary(min){summary={min};pend=null;render(true)}
 function finishNow(){const m=me();const el=Math.round((m.pausedLeft!=null?m.durMin*60000-m.pausedLeft:Date.now()-m.startedAt)/60000);openSummary(Math.max(1,Math.min(m.durMin,el)))}
 function shrink(f){return new Promise(r=>{const im=new Image();im.onload=()=>{const k=Math.min(1,640/Math.max(im.width,im.height));const c=document.createElement("canvas");c.width=im.width*k;c.height=im.height*k;c.getContext("2d").drawImage(im,0,0,c.width,c.height);r(c.toDataURL("image/jpeg",.6))};im.src=URL.createObjectURL(f)})}
-function lastQ(x){const l=(x.log||[]).find(l=>l.quick&&Date.now()-l.t<216e5);if(!l)return"";const ago=Math.max(1,Math.round((Date.now()-l.t)/60000));const ph=(l.pids||[]).map(p=>photos[p]).find(Boolean);
- return `<div class="mu" style="margin-top:6px">${l.ps?"✅ Prüfung bestanden":"❌ Prüfung nicht bestanden"} · vor ${ago<60?ago+" Min":Math.round(ago/60)+" Std"}${l.note?" · "+esc(l.note):""}</div>${ph?`<img class="pv" style="max-height:140px" src="${ph}" alt="">`:""}`}
+function lastQ(x){const L=(x.log||[]).filter(l=>l.quick&&l.d===day());if(!L.length)return"";const ex=L.length,ps=L.reduce((a,l)=>a+(l.ps||0),0),ago=Math.max(1,Math.round((Date.now()-L[0].t)/60000));const ph=L.flatMap(l=>(l.pids||[]).map(p=>photos[p]).filter(Boolean)).slice(0,3);
+ return `<div class="mu" style="margin-top:6px">Heute gemeldet: ${ex} · ✅ ${ps} · ❌ ${ex-ps} (zuletzt vor ${ago<60?ago+" Min":Math.round(ago/60)+" Std"})</div>${ph.length?`<div class="gal">${ph.map(s=>`<img src="${s}" alt="">`).join("")}</div>`:""}`}
 function sendQuick(){if(qp.pass===null){alert("Bitte zuerst das Ergebnis wählen");return}const m=me();const pids=[];
  (pend||[]).forEach((img,i)=>{const pid=uid+"_"+Date.now()+"_"+i;pids.push(pid);db.doc("photos/"+pid).set({img}).catch(()=>{werr=true;render(true)});photos[pid]=img});
  const e={d:day(),t:Date.now(),min:0,ex:1,ps:qp.pass?1:0,note:$("#qnote").value.trim(),g:m.goalText||"",pids,quick:1};
- qp=null;pend=null;save({log:[e,...(m.log||[])].slice(0,60),exTotal:(m.exTotal||0)+1,passTotal:(m.passTotal||0)+e.ps})}
+ qp=null;pend=null;save({log:[e,...(m.log||[])].slice(0,200),exTotal:(m.exTotal||0)+1,passTotal:(m.passTotal||0)+e.ps})}
 function saveSummary(){const m=me(),k=kindOf(m);const n=id=>$(id)?Math.max(0,parseInt($(id).value)||0):0;
  const min=n("#smin"),ex=n("#sex"),ps=Math.min(ex,n("#sps")),tk=n("#stk"),note=$("#note").value.trim();let pids=[];
  (pend||[]).forEach((img,i)=>{const pid=uid+"_"+Date.now()+"_"+i;pids.push(pid);db.doc("photos/"+pid).set({img}).catch(()=>{werr=true;render(true)});photos[pid]=img});
- const log=[{d:day(),min,ex,ps,tk,note,g:m.goalText||"",pids},...(m.log||[])].slice(0,60);
+ const log=[{d:day(),min,ex,ps,tk,note,g:m.goalText||"",pids},...(m.log||[])].slice(0,200);
  summary=null;pend=null;save({startedAt:null,pausedLeft:null,log,totalMin:(m.totalMin||0)+min,exTotal:(m.exTotal||0)+ex,passTotal:(m.passTotal||0)+ps,tkTotal:(m.tkTotal||0)+tk})}
 function render(force){
  const a=document.activeElement;
@@ -68,10 +68,10 @@ function render(force){
  if(!m.name){app.innerHTML='<h1>Lernraum zu zweit</h1><div class="card"><h2>Wer bist du?</h2><div class="row"><button class="p" data-n="Linus">Ich bin Linus</button><button class="p" data-n="Hannah">Ich bin Hannah</button></div></div>';
   document.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>save({name:b.dataset.n}));return}
  const all=Object.entries(members),byName=n=>all.find(([,x])=>x.name===n);
- const total=all.reduce((s,[,x])=>s+(x.totalMin||0),0);
+ const total=all.reduce((s,[,x])=>s+Math.min(x.totalMin||0,6000),0);
  let lv=0;LV.forEach((t,i)=>{if(total>=t)lv=i});const nxt=LV[lv+1];const pct=nxt?Math.round((total-LV[lv])/(nxt-LV[lv])*100):100;
  const qn=all.find(([id,x])=>id!==uid&&(x.log||[]).some(l=>l.quick&&Date.now()-l.t<6e5));const ch=all.find(([id,x])=>id!==uid&&x.lastCheer&&Date.now()-x.lastCheer<3e5);let h='<h1>Lernraum zu zweit</h1>'+(ch?`<div class="card" style="text-align:center">👏 ${esc(ch[1].name)} feuert dich an!</div>`:"")+(qn?`<div class="card" style="text-align:center">🔔 ${esc(qn[1].name)} hat gerade eine Prüfung gemeldet</div>`:"")+(werr?'<div class="err">Speichern klappt gerade nicht. Vermutlich hast du nur Leserechte oder bist nicht eingeloggt. Bitte lass dich als Mitwirkende einladen.</div>':'');
- h+=`<div class="card pet"><div class="e">${PETS[lv]}</div><b>Level ${lv+1} von ${LV.length}</b><div class="bar"><i style="width:${pct}%"></i></div><div class="mu">${nxt?`Noch ${nxt-total} Min bis zum nächsten Level`:"Eure Katze ist ausgewachsen! 🎉"} · gemeinsam ${Math.round(total/6)/10} Std gelernt</div></div>`;
+ h+=`<div class="card pet"><div class="e">${PETS[Math.floor(lv*11/99)]}</div><b>Level ${lv+1} von ${LV.length}</b><div class="bar"><i style="width:${pct}%"></i></div><div class="mu">${nxt?`Noch ${nxt-total} Min bis zum nächsten Level`:"Eure Katze ist ausgewachsen! 🎉"} · gemeinsam ${Math.round(total/6)/10} Std gelernt</div></div>`;
  h+='<div class="card"><h2>Im Raum</h2>';
  NAMES.forEach(n=>{const e=byName(n);if(!e){h+=`<div style="margin-bottom:10px"><b>${n}</b> <span class="mu">noch nicht beigetreten</span></div>`;return}
   const[id,x]=e,p=prog(x),lvv=x.startedAt&&Date.now()<x.startedAt+x.durMin*60000;
@@ -95,7 +95,11 @@ function render(force){
   <label>Zeitraum</label><select id="gp" ${dis}><option value="day" ${(x.goalPer||"day")==="day"?"selected":""}>pro Tag</option><option value="total" ${x.goalPer==="total"?"selected":""}>insgesamt (in der Zeit)</option></select>`;
   const wk=(x.log||[]).filter(l=>(Date.now()-new Date(l.d))<7*864e5).reduce((a,l)=>a+l.min,0);
   h+=`<div class="mu" style="margin-top:12px">Letzte 7 Tage: ${wk} Min · Prüfungen: ${x.exTotal||0} (${x.passTotal||0} bestanden) · Aufgaben: ${x.tkTotal||0}</div>`;
-  (x.log||[]).slice(0,10).forEach(l=>{h+=`<div class="log"><b>${esc(l.d)}</b> · ${l.min} Min${l.g?" · "+esc(l.g):""}${l.ex?`<br>Prüfungen: ${l.ex}, bestanden: ${l.ps||0}, nicht bestanden: ${l.ex-(l.ps||0)}`:""}${l.tk?`<br>Aufgaben: ${l.tk}`:""}${l.note?`<br>${esc(l.note)}`:""}${(l.pids||(l.pid?[l.pid]:[])).map(p=>photos[p]?`<img src="${photos[p]}" alt="Foto">`:"").join("")}</div>`});
+  Object.entries((x.log||[]).reduce((o,l)=>{(o[l.d]=o[l.d]||[]).push(l);return o},{})).sort((p,q)=>q[0].localeCompare(p[0])).slice(0,10).forEach(([d,ls])=>{
+   const S=k=>ls.reduce((o,l)=>o+(l[k]||0),0),ex=S("ex"),ps=S("ps"),tk=S("tk"),min=S("min");
+   const ph=ls.flatMap(l=>(l.pids||(l.pid?[l.pid]:[])).map(p=>photos[p]).filter(Boolean));
+   const notes=ls.filter(l=>l.note).map(l=>esc(l.note));
+   h+=`<div class="log"><b>${esc(d)}</b> · ${min} Min${ex?`<br>Prüfungen: ${ex} gemacht · ✅ ${ps} bestanden · ❌ ${ex-ps} nicht bestanden`:""}${tk?`<br>Aufgaben: ${tk}`:""}${notes.length?`<br>${notes.join(" · ")}`:""}${ph.length?`<div class="gal">${ph.map(s=>`<img src="${s}" alt="Foto">`).join("")}</div>`:""}</div>`});
   if(!(x.log||[]).length)h+='<p class="mu">Noch keine Sessions.</p>'}
  h+='</div>';
  h+='<div class="card"><h2>Einladung</h2><p class="mu">Schick diesen Link per WhatsApp. Die andere Person muss nichts einrichten.</p><button id="inv">Link kopieren</button> <button id="sw">Person wechseln</button></div>';
